@@ -17,8 +17,8 @@ def temp_db():
     """Create a temporary test database."""
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test.db"
-        conn = sqlite3.connect(db_path)
-        init_db(conn)
+        init_db(str(db_path))  # init_db expects a path string
+        conn = sqlite3.connect(str(db_path))
         yield conn
         conn.close()
 

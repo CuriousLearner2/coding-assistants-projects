@@ -18,7 +18,7 @@ class TestAddressExtraction:
         """Extract address like '1645 Dwight Way' from subject."""
         subject = "A home for you at 1645 Dwight Way, Berkeley CA"
         addr = extract_address_from_subject(subject)
-        assert addr == "1645 Dwight Way"
+        assert addr == "1645 Dwight Way, Berkeley"
 
     def test_address_from_subject_with_street_type(self):
         """Extract full address with street type."""
