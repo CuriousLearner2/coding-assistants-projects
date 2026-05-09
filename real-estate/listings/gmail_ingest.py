@@ -15,7 +15,6 @@ from listings.db import (
     upsert_listing,
     get_listing_by_gmail_id,
     property_exists,
-    get_listing_by_property,
     get_listing_by_address,
 )
 from listings.utils import get_gmail_service, get_anthropic_client
@@ -1832,8 +1831,8 @@ def run_ingest(conn: sqlite3.Connection, service) -> int:
                 print(f"  Skipping {msg_id} ({city} not in allowed cities)")
                 continue
 
-            # Check if duplicate property already exists (same address, price, beds)
-            existing = get_listing_by_property(conn, listing.get('address'), listing.get('price'), listing.get('beds'))
+            # Check if duplicate property already exists (by address only)
+            existing = get_listing_by_address(conn, listing.get('address'))
 
             # Use existing ID if this is a re-listing, otherwise use Gmail ID
             record_id = existing["id"] if existing else msg_id
