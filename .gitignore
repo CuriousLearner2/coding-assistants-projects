@@ -28,3 +28,4 @@ nyt_cookies.json
 _archive/
 *.log
 .env
+bangla/last_article.txt

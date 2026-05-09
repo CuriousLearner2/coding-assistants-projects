@@ -18,6 +18,7 @@ RECEIVER_EMAIL = "gautambiswas2004@icloud.com"
 EMAIL_PASSWORD = "jjho-mufs-iyya-nbit"
 SMTP_SERVER = "smtp.mail.me.com"
 SMTP_PORT = 587
+LAST_ARTICLE_FILE = "last_article.txt"
 
 def get_latest_news():
     url = "https://bangla.thedailystar.net/news/bangladesh"
@@ -28,16 +29,44 @@ def get_latest_news():
             return None, None, f"HTTP Error {response.status_code}"
             
         soup = BeautifulSoup(response.text, 'html.parser')
-        article_tag = soup.find(['h3', 'h5'], class_='card-title')
-        if not article_tag: article_tag = soup.find('h5', class_='field-content')
-        if not article_tag: return None, None, "Could not find article tags on page"
+        articles = soup.find_all(['h3', 'h5'], class_='card-title')
         
-        link_tag = article_tag.find('a')
-        if not link_tag: return None, None, "Could not find link in article tag"
+        if not articles:
+            # Fallback
+            articles = soup.find_all('h5', class_='field-content')
+            
+        if not articles:
+            return None, None, "Could not find any article tags on page"
+
+        # Load last sent article link to avoid duplicates
+        last_link = ""
+        if os.path.exists(LAST_ARTICLE_FILE):
+            with open(LAST_ARTICLE_FILE, 'r') as f:
+                last_link = f.read().strip()
+
+        selected_article = None
+        for art in articles:
+            link_tag = art.find('a')
+            if link_tag and link_tag.get('href'):
+                link = link_tag['href']
+                if link != last_link:
+                    selected_article = art
+                    break
         
+        # If all top articles were already sent (unlikely but possible), just take the first one
+        if not selected_article:
+            selected_article = articles[0]
+
+        link_tag = selected_article.find('a')
         title = link_tag.text.strip()
         link = link_tag['href']
-        if not link.startswith('http'): link = "https://bangla.thedailystar.net" + link
+        
+        # Store this as the last sent link
+        with open(LAST_ARTICLE_FILE, 'w') as f:
+            f.write(link)
+
+        if not link.startswith('http'): 
+            link = "https://bangla.thedailystar.net" + link
         
         art_response = requests.get(link, headers=headers, timeout=10)
         art_soup = BeautifulSoup(art_response.text, 'html.parser')
@@ -86,7 +115,6 @@ def send_email(subject, body, is_failure=False):
     prefix = "[Daily News - Failure]" if is_failure else "[Daily News - Simplified]"
     msg['Subject'] = f"{prefix} {subject}"
     
-    # Ensure body is a string
     if body is None:
         body = "No content available."
         
@@ -122,5 +150,4 @@ if __name__ == "__main__":
                 except: pass
             send_email(sub, bod)
         else:
-            # If AI fails, send raw news but with a small note
             send_email(title, f"(Note: AI simplification failed. Sending raw snippet.)\n\n{content[:1000]}...")

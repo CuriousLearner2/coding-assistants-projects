@@ -8,3 +8,29 @@ Email sent successfully!
 /Users/gautambiswas/daily-news-bangla/daily_news_task.sh: line 7: /usr/bin/python3.11: No such file or directory
 /Users/gautambiswas/daily-news-bangla/daily_news_task.sh: line 7: /usr/bin/python3.11: No such file or directory
 /Users/gautambiswas/Gemini Code/coding-assistants-projects/bangla/daily_news_task.sh: line 7: /usr/bin/python3.11: No such file or directory
+/Users/gautambiswas/Gemini Code/coding-assistants-projects/bangla/daily_news_task.sh: line 7: /usr/bin/python3.11: No such file or directory
+Fetching news...
+Article found: পজিটিভ প্যারেন্টিং কী, যা জানা দরকার
+Gemini error: 403 PERMISSION_DENIED. {'error': {'code': 403, 'message': 'Your API key was reported as leaked. Please use another API key.', 'status': 'PERMISSION_DENIED'}}
+Email error: 'NoneType' object has no attribute 'encode'
+Fetching news...
+Article found: পজিটিভ প্যারেন্টিং কী, যা জানা দরকার
+Gemini error: 403 PERMISSION_DENIED. {'error': {'code': 403, 'message': 'Your API key was reported as leaked. Please use another API key.', 'status': 'PERMISSION_DENIED'}}
+Email sent: পজিটিভ প্যারেন্টিং কী, যা জানা দরকার
+Fetching news...
+Article found: পজিটিভ প্যারেন্টিং কী, যা জানা দরকার
+Gemini error: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+Email sent: পজিটিভ প্যারেন্টিং কী, যা জানা দরকার
+Fetching news...
+Article found: পজিটিভ প্যারেন্টিং কী, যা জানা দরকার
+Gemini error: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+Email sent: পজিটিভ প্যারেন্টিং কী, যা জানা দরকার
+Fetching news...
+Article found: বিজয়ের যেভাবে তামিলনাড়ু জয়
+Email sent: অভিনেতা বিজয়ের রাজনীতিতে বড় জয়
+Fetching news...
+Scraping failure: HTTPSConnectionPool(host='bangla.thedailystar.net', port=443): Read timed out. (read timeout=10)
+Email sent: Script could not reach the news site
+Fetching news...
+Article found: বিজয়ের যেভাবে তামিলনাড়ু জয়
+Email sent: তামিলনাড়ু নির্বাচনে অভিনেতা বিজয়ের বড় জয়
