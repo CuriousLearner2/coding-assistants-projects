@@ -261,8 +261,33 @@ def _build_cleveland_batch_requests(emails_needing_claude: Dict[str, Dict]) -> L
     return requests
 
 
+def _is_valid_address(address: str) -> bool:
+    """Sanity check: reject obviously invalid addresses like 'Random Rd' or street names alone.
+
+    Valid addresses should have a house number at the start, e.g. '1234 Main St' or '100 Oak Ave'.
+    Rejects patterns like 'Random Rd' (no number) or obviously incomplete addresses.
+    """
+    if not address:
+        return False
+    # Must start with a number (house number)
+    first_token = address.split()[0]
+    if not first_token.isdigit():
+        return False
+    # Address should be at least 3 tokens (number, street, type) and <= 10 tokens
+    tokens = address.split()
+    if len(tokens) < 3 or len(tokens) > 10:
+        return False
+    return True
+
+
 def _is_university_circle(prop: Dict) -> bool:
     """Return True if property is in University Circle, Cleveland OH."""
+    address = (prop.get("address") or "").strip()
+
+    # Sanity check: reject obviously invalid addresses
+    if not _is_valid_address(address):
+        return False
+
     neighborhood = (prop.get("neighborhood") or "").strip().lower()
     # Accept if neighborhood is University Circle (email already Cleveland-filtered)
     if neighborhood in ALLOWED_NEIGHBORHOODS:
