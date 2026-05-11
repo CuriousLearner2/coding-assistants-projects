@@ -86,7 +86,11 @@ def run_batch_ingest(conn: sqlite3.Connection, service) -> int:
 
 
 def _fetch_all_emails(service, last_ts: str) -> List[Dict]:
-    """Phase 1: Fetch Redfin + Zillow emails from iCloud IMAP, return with source tagging."""
+    """Phase 1: Fetch Redfin + Zillow emails from iCloud IMAP, return with source tagging.
+
+    Deduplicates by (received_at, subject, sender) to handle cases where the same email
+    appears multiple times with different Message-ID headers (can happen with iCloud IMAP).
+    """
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -100,8 +104,8 @@ def _fetch_all_emails(service, last_ts: str) -> List[Dict]:
             pass
 
     all_emails = []
-
-    seen_ids = set()
+    seen_ids = set()  # Dedup by Message-ID header
+    seen_keys = set()  # Dedup by (received_at, subject, sender) tuple
 
     def _tag_source(em: dict, default_source: str) -> None:
         """Set source using original_from when available (handles forwarded emails)."""
@@ -113,6 +117,13 @@ def _fetch_all_emails(service, last_ts: str) -> List[Dict]:
         else:
             em["source"] = default_source
 
+    def _make_dedup_key(em: dict) -> str:
+        """Create dedup key from received_at + subject + sender to catch duplicate emails."""
+        received = em.get("received_at", "")
+        subject = em.get("subject", "").strip()
+        sender = em.get("from", "").strip()
+        return f"{received}|{subject}|{sender}"
+
     # Fetch Redfin
     redfin_emails = icloud_imap.fetch_emails("redfin.com", since_date=since_date)
     for em in redfin_emails:
@@ -120,16 +131,28 @@ def _fetch_all_emails(service, last_ts: str) -> List[Dict]:
         if "cleveland" in subject:
             continue
         _tag_source(em, "Redfin")
-        if em["id"] not in seen_ids:
-            seen_ids.add(em["id"])
+
+        # Deduplicate by both ID and content signature
+        email_id = em["id"]
+        dedup_key = _make_dedup_key(em)
+
+        if email_id not in seen_ids and dedup_key not in seen_keys:
+            seen_ids.add(email_id)
+            seen_keys.add(dedup_key)
             all_emails.append(em)
 
     # Fetch Zillow
     zillow_emails = icloud_imap.fetch_emails("zillow.com", since_date=since_date)
     for em in zillow_emails:
         _tag_source(em, "Zillow")
-        if em["id"] not in seen_ids:
-            seen_ids.add(em["id"])
+
+        # Deduplicate by both ID and content signature
+        email_id = em["id"]
+        dedup_key = _make_dedup_key(em)
+
+        if email_id not in seen_ids and dedup_key not in seen_keys:
+            seen_ids.add(email_id)
+            seen_keys.add(dedup_key)
             all_emails.append(em)
 
     return all_emails
