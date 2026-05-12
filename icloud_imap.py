@@ -200,3 +200,76 @@ def fetch_emails(
 
     mail.logout()
     return results
+
+
+def fetch_email_by_subject_date(subject: str, received_at: str, folder: str = "INBOX") -> Optional[dict]:
+    """Fetch a specific email by subject and date for audit/re-processing.
+
+    Args:
+        subject: Email subject line to match
+        received_at: ISO 8601 timestamp of when email was received
+        folder: IMAP folder to search
+
+    Returns:
+        Email dict with keys: subject, from, received_at, html_body, plain_body
+        Or None if not found
+    """
+    try:
+        mail = connect()
+        mail.select(folder)
+
+        # Parse the received_at date to get the date for IMAP search
+        try:
+            dt = datetime.fromisoformat(received_at)
+            imap_date = dt.strftime("%d-%b-%Y")
+            # Search for emails on that date with matching subject
+            _, data = mail.search(None, f'SINCE "{imap_date}"', f'BEFORE "{dt.strftime("%d-%b-%Y")}"', f'SUBJECT "{subject}"')
+        except Exception:
+            # Fallback: just search by subject
+            _, data = mail.search(None, f'SUBJECT "{subject}"')
+
+        if not data or not data[0]:
+            mail.logout()
+            return None
+
+        ids = data[0].split()
+        if not ids:
+            mail.logout()
+            return None
+
+        # Return the most recent match
+        for imap_id in reversed(ids):
+            _, msg_data = mail.fetch(imap_id, "(BODY[])")
+            if not msg_data or not isinstance(msg_data[0], tuple):
+                continue
+
+            raw = msg_data[0][1]
+            if not isinstance(raw, bytes):
+                continue
+
+            msg = email.message_from_bytes(raw)
+            frm = _decode_header_value(msg.get("From", ""))
+            subj = _decode_header_value(msg.get("Subject", ""))
+            plain_body, html_body = _extract_body(msg)
+
+            date_str = msg.get("Date", "")
+            try:
+                from email.utils import parsedate_to_datetime
+                email_received_at = parsedate_to_datetime(date_str).astimezone(timezone.utc).isoformat()
+            except Exception:
+                email_received_at = received_at
+
+            mail.logout()
+            return {
+                "subject": subj,
+                "from": frm,
+                "received_at": email_received_at,
+                "html_body": html_body,
+                "plain_body": plain_body,
+            }
+
+        mail.logout()
+        return None
+    except Exception as e:
+        print(f"Error fetching email by subject/date: {e}")
+        return None

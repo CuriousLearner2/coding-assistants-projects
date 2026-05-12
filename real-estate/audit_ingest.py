@@ -421,11 +421,12 @@ def ingest_listing(conn, prop: Dict, email_id: str, subject: str, source: str, r
 # ─── Main audit loop ─────────────────────────────────────────────────────────
 
 def run_audit(email_ids: List[str]):
-    from listings.gmail_ingest import get_full_email
-    from listings.utils import get_gmail_service, get_anthropic_client
+    from listings.utils import get_anthropic_client
+    import sys
+    sys.path.insert(0, str(Path.cwd().parent))
+    import icloud_imap
 
     conn = get_conn()
-    service = get_gmail_service()
     client = get_anthropic_client()
 
     print(f"\nRunning extraction audit on {len(email_ids)} emails\n{'='*60}")
@@ -440,7 +441,17 @@ def run_audit(email_ids: List[str]):
         for email_id in email_ids:
             print(f"\n── {email_id} ──")
 
-            email = get_full_email(service, email_id)
+            # Look up email metadata from DB
+            row = conn.execute(
+                "SELECT subject, received_at FROM listings WHERE gmail_message_id = ? LIMIT 1",
+                (email_id,)
+            ).fetchone()
+            if not row:
+                print("  ERROR: email not in database")
+                continue
+
+            subject, received_at = row
+            email = icloud_imap.fetch_email_by_subject_date(subject, received_at)
             if not email or not email.get("html_body"):
                 print("  ERROR: could not fetch email")
                 continue
@@ -869,11 +880,12 @@ def run_audit_large_scale(since_date: str = "2023-01-01", resume_tmpdir: str = N
         resume_tmpdir: If set, skip rendering and reuse pre-rendered files from
             this directory (use after a crash mid-Phase-3).
     """
-    from listings.gmail_ingest import get_full_email
-    from listings.utils import get_gmail_service, get_anthropic_client
+    from listings.utils import get_anthropic_client
+    import sys
+    sys.path.insert(0, str(Path.cwd().parent))
+    import icloud_imap
 
     conn = get_conn()
-    service = get_gmail_service()
     client = get_anthropic_client()
 
     # ── Load email IDs from DB, skip already audited ──────────────────────────
@@ -931,7 +943,9 @@ def run_audit_large_scale(since_date: str = "2023-01-01", resume_tmpdir: str = N
 
         def _fetch_one(row):
             eid = row["gmail_message_id"]
-            email = get_full_email(service, eid)
+            subject = row["subject"]
+            received_at = row["received_at"]
+            email = icloud_imap.fetch_email_by_subject_date(subject, received_at)
             return eid, row, email
 
         fetch_failed = []
