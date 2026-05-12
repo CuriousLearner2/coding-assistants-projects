@@ -265,18 +265,23 @@ def _build_email_html(
 
 
 def _send_email(service, subject: str, html_body: str):
-    """Send email via Gmail API."""
+    """Send email via SMTP with app password (never expires)."""
+    import smtplib
+
     msg = MIMEMultipart("alternative")
     msg["To"] = RECIPIENT
     msg["From"] = RECIPIENT
     msg["Subject"] = subject
     msg.attach(MIMEText(html_body, "html"))
 
-    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    service.users().messages().send(
-        userId="me",
-        body={"raw": raw}
-    ).execute()
+    # Use SMTP with app password (doesn't expire like OAuth tokens)
+    app_password = os.environ.get("GMAIL_APP_PASSWORD")
+    if not app_password:
+        raise ValueError("GMAIL_APP_PASSWORD not set in environment")
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(RECIPIENT, app_password)
+        server.send_message(msg)
 
 
 def _send_error_email(service, error_title: str, error_details: str, remedy: str):
