@@ -3,8 +3,8 @@
 Daily NYT digest — fetches top 5 articles from selected sections
 and sends an HTML email summary.
 """
-import base64
 import os
+import smtplib
 import sys
 import time
 from datetime import datetime, timezone
@@ -200,15 +200,19 @@ def _build_email_html(sections_data: Dict[str, List[Dict]]) -> str:
 
 
 def _send_email(subject: str, html_body: str):
-    from listings.utils import get_gmail_service
-    service = get_gmail_service()
     msg = MIMEMultipart("alternative")
     msg["To"] = RECIPIENT
     msg["From"] = RECIPIENT
     msg["Subject"] = subject
     msg.attach(MIMEText(html_body, "html"))
-    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    service.users().messages().send(userId="me", body={"raw": raw}).execute()
+
+    app_password = os.environ.get("GMAIL_APP_PASSWORD")
+    if not app_password:
+        raise ValueError("GMAIL_APP_PASSWORD not set in environment")
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(RECIPIENT, app_password)
+        server.send_message(msg)
 
 
 def main():
