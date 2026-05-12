@@ -84,8 +84,8 @@ def _driving_distance_miles(
     return None
 
 
-def _fetch_cleveland_emails(service, last_ts: str) -> List[Dict]:
-    """Fetch Redfin emails mentioning Cleveland, OH since last_ts from both Gmail and iCloud."""
+def _fetch_cleveland_emails(last_ts: str) -> List[Dict]:
+    """Fetch Redfin emails mentioning Cleveland, OH since last_ts from iCloud IMAP."""
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -327,13 +327,12 @@ def _already_ingested(conn: sqlite3.Connection, gmail_id: str, address: str) -> 
     return row is not None
 
 
-def run_cleveland_ingest(conn: sqlite3.Connection, service) -> int:
+def run_cleveland_ingest(conn: sqlite3.Connection) -> int:
     """
     Orchestrate Cleveland University Circle ingest pipeline.
 
     Args:
         conn: SQLite connection
-        service: Gmail API service
 
     Returns:
         Number of new listings ingested.
@@ -341,7 +340,7 @@ def run_cleveland_ingest(conn: sqlite3.Connection, service) -> int:
     last_ts = get_sync_state(conn, "last_cleveland_email_timestamp") or "0"
     print(f"Fetching Cleveland emails since {last_ts}...")
 
-    all_emails = _fetch_cleveland_emails(service, last_ts)
+    all_emails = _fetch_cleveland_emails(last_ts)
     if not all_emails:
         print("  No new Cleveland emails found")
         return 0

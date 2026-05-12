@@ -27,11 +27,11 @@ from listings.gmail_ingest import (
 from listings.utils import get_anthropic_client
 
 
-def run_batch_ingest(conn: sqlite3.Connection, service) -> int:
+def run_batch_ingest(conn: sqlite3.Connection) -> int:
     """Entry point: orchestrate full batch ingest pipeline."""
     # Phase 1: Fetch Redfin + Zillow emails
     last_ts = get_sync_state(conn, "last_email_timestamp") or "0"
-    all_emails = _fetch_all_emails(service, last_ts)
+    all_emails = _fetch_all_emails(last_ts)
 
     if not all_emails:
         print("No new emails found")
@@ -85,7 +85,7 @@ def run_batch_ingest(conn: sqlite3.Connection, service) -> int:
     return count
 
 
-def _fetch_all_emails(service, last_ts: str) -> List[Dict]:
+def _fetch_all_emails(last_ts: str) -> List[Dict]:
     """Phase 1: Fetch Redfin + Zillow emails from iCloud IMAP, return with source tagging.
 
     Deduplicates by (received_at, subject, sender) to handle cases where the same email

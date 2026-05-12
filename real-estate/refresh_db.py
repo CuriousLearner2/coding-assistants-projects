@@ -153,14 +153,11 @@ def main():
     # Run ingest directly (skip shell script to avoid PATH issues)
     from listings.batch_ingest import run_batch_ingest
     from listings.cleveland_ingest import run_cleveland_ingest
-    from listings.utils import get_gmail_service
 
     conn = sqlite3.connect(DB_PATH)
     try:
-        service = get_gmail_service()
-
         # East Bay ingest
-        ingest_count = run_batch_ingest(conn, service)
+        ingest_count = run_batch_ingest(conn)
         if ingest_count > 0:
             print(f"\n✓ Successfully ingested {ingest_count} new listings")
         else:
@@ -168,7 +165,7 @@ def main():
 
         # Cleveland / University Circle ingest
         print("\n--- Cleveland University Circle ---")
-        cleveland_count = run_cleveland_ingest(conn, service)
+        cleveland_count = run_cleveland_ingest(conn)
         if cleveland_count > 0:
             print(f"✓ Successfully ingested {cleveland_count} new Cleveland listings")
         else:

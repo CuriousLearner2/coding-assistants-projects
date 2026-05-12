@@ -264,7 +264,7 @@ def _build_email_html(
     """
 
 
-def _send_email(service, subject: str, html_body: str):
+def _send_email(subject: str, html_body: str):
     """Send email via SMTP with app password (never expires)."""
     import smtplib
 
@@ -274,7 +274,6 @@ def _send_email(service, subject: str, html_body: str):
     msg["Subject"] = subject
     msg.attach(MIMEText(html_body, "html"))
 
-    # Use SMTP with app password (doesn't expire like OAuth tokens)
     app_password = os.environ.get("GMAIL_APP_PASSWORD")
     if not app_password:
         raise ValueError("GMAIL_APP_PASSWORD not set in environment")
@@ -284,7 +283,7 @@ def _send_email(service, subject: str, html_body: str):
         server.send_message(msg)
 
 
-def _send_error_email(service, error_title: str, error_details: str, remedy: str):
+def _send_error_email(error_title: str, error_details: str, remedy: str):
     """Send error report email with remediation steps."""
     html = f"""
     <html><body style="font-family:Arial,sans-serif;max-width:700px;margin:auto;padding:20px;">
@@ -299,7 +298,7 @@ def _send_error_email(service, error_title: str, error_details: str, remedy: str
       </p>
     </body></html>
     """
-    _send_email(service, f"🚨 Listings Refresh Error: {error_title}", html)
+    _send_email(f"🚨 Listings Refresh Error: {error_title}", html)
 
 
 def main():
@@ -347,9 +346,6 @@ def main():
 
         # Step 3: prepare email data
         print("Step 3: Preparing summary email...")
-        from listings.utils import get_gmail_service
-        service = get_gmail_service()
-
         new_listings = _get_new_listings(since_ts)
         cleveland_listings = _get_cleveland_new_listings(since_ts)
 
@@ -367,7 +363,6 @@ def main():
                     # But we should check if iCloud credentials are working
                     if "iCloud fetch failed" in out1 or "LOGIN command error" in out1:
                         _send_error_email(
-                            service,
                             "iCloud Authentication Failed",
                             "Cleveland ingest failed to connect to iCloud IMAP.",
                             "Fix: Verify iCloud app password in ~/.zshrc\n"
@@ -384,16 +379,11 @@ def main():
 
     # ALWAYS send a status email (Layer 2)
     try:
-        if not service:
-            from listings.utils import get_gmail_service
-            service = get_gmail_service()
-
         if exception_occurred:
             # Send error email for unexpected exceptions
             import traceback
             tb_str = traceback.format_exc()
             _send_error_email(
-                service,
                 "Job Execution Error",
                 f"Unexpected error: {str(exception_occurred)}",
                 tb_str
@@ -408,7 +398,7 @@ def main():
                 new_listings, cleveland_listings,
                 since_ts or "1970-01-01", refresh_ok, audit_ok,
             )
-            _send_email(service, subject, html)
+            _send_email(subject, html)
             print(f"  ✓ Summary email sent to {RECIPIENT}")
     except Exception as e:
         print(f"  ⚠ Failed to send status email: {e}")
