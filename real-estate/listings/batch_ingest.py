@@ -27,6 +27,14 @@ from listings.gmail_ingest import (
 from listings.utils import get_anthropic_client
 
 
+def _is_valid_address(address: str) -> bool:
+    """Sanity check: reject obviously invalid addresses like 'Random Rd' (no house number)."""
+    if not address:
+        return False
+    first_token = address.split()[0]
+    return first_token.isdigit()
+
+
 def run_batch_ingest(conn: sqlite3.Connection) -> int:
     """Entry point: orchestrate full batch ingest pipeline."""
     # Phase 1: Fetch Redfin + Zillow emails
@@ -552,8 +560,8 @@ def _merge_and_upsert(
                 source = email.get("source", "")
                 address = prop.get("address")
 
-                # Skip properties without an address
-                if not address:
+                # Skip properties without a valid address
+                if not address or not _is_valid_address(address):
                     continue
 
                 # Require minimal set: city, beds, baths, sqft
