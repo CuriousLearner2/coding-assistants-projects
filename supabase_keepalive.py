@@ -88,9 +88,9 @@ def send_keepalive():
     logger.info("Connecting to Supabase...")
     supabase: Client = create_client(supabase_url, supabase_key)
 
-    # Simple query to any table - just to trigger activity
+    # Simple query to trigger activity - just count records in any table
     logger.info("Sending keepalive ping to Supabase...")
-    response = supabase.table("whatsapp_sessions").select("id", count="exact").limit(1).execute()
+    response = supabase.table("whatsapp_sessions").select("*", count="exact").limit(1).execute()
 
     if not response:
         raise Exception("Keepalive query returned empty response")
