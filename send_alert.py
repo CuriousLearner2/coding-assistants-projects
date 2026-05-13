@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Send a failure alert email via Gmail. Called by wrapper scripts on error."""
-import base64
+"""Send a failure alert email via SMTP. Called by wrapper scripts on error."""
+import os
+import smtplib
 import sys
 from datetime import datetime
 from email.mime.text import MIMEText
@@ -9,14 +10,14 @@ from pathlib import Path
 RECIPIENT = "gautambiswas2004@gmail.com"
 
 
-def _get_gmail_service():
-    sys.path.insert(0, str(Path(__file__).parent / "real-estate"))
-    from listings.utils import get_gmail_service
-    return get_gmail_service()
-
-
 def send_alert(job: str, reason: str, log_path: str) -> None:
+    """Send alert email via Gmail SMTP with app password."""
     try:
+        email_password = os.getenv("GMAIL_APP_PASSWORD")
+        if not email_password:
+            print("WARNING: GMAIL_APP_PASSWORD not set, cannot send alert", file=sys.stderr)
+            return
+
         log_tail = ""
         try:
             lines = Path(log_path).read_text().splitlines()
@@ -35,10 +36,12 @@ def send_alert(job: str, reason: str, log_path: str) -> None:
         msg["To"] = RECIPIENT
         msg["From"] = RECIPIENT
         msg["Subject"] = f"[ALERT] {job} failed — {reason}"
-        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        service = _get_gmail_service()
-        service.users().messages().send(userId="me", body={"raw": raw}).execute()
-        print(f"Alert email sent to {RECIPIENT}")
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(RECIPIENT, email_password)
+            server.send_message(msg)
+
+        print(f"✓ Alert email sent to {RECIPIENT}")
     except Exception as e:
         print(f"WARNING: Could not send alert email: {e}", file=sys.stderr)
 
