@@ -2,14 +2,22 @@
 """
 Supabase keepalive script - prevents free-tier projects from being paused due to inactivity.
 Runs three times a week to maintain activity on the Supabase project.
+Includes retry logic and email alerts.
 """
 
 import os
+import sys
 import logging
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 # Load environment variables
 load_dotenv()
@@ -29,44 +37,107 @@ logging.basicConfig(
 )
 logger = logging.getLogger("supabase_keepalive")
 
-def send_keepalive():
-    """Send a keepalive ping to Supabase to prevent project pause."""
+RUN_LOG = Path.home() / "Claude Code" / ".run_log"
+RECIPIENT = "gautambiswas2004@gmail.com"
+
+
+def _write_run_log(status: str):
+    """Log to the run log for visibility with other jobs."""
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    with open(RUN_LOG, "a") as f:
+        f.write(f"{ts}  supabase-keepalive        {status}\n")
+
+
+def _send_email(subject: str, body: str):
+    """Send email alert via Gmail."""
     try:
-        supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_ANON_KEY")
+        # Import here to avoid issues if Gmail service isn't available
+        sys.path.insert(0, str(Path(__file__).parent / "real-estate"))
+        from listings.utils import get_gmail_service
+        import base64
+        from email.mime.text import MIMEText
 
-        if not supabase_url or not supabase_key:
-            logger.error("Missing SUPABASE_URL or SUPABASE_ANON_KEY environment variables")
-            return False
-
-        logger.info("Connecting to Supabase...")
-        supabase: Client = create_client(supabase_url, supabase_key)
-
-        # Simple query to any table - just to trigger activity
-        # This counts records in the whatsapp_sessions table
-        logger.info("Sending keepalive ping to Supabase...")
-        response = supabase.table("whatsapp_sessions").select("id", count="exact").limit(1).execute()
-
-        if response:
-            logger.info(f"✓ Keepalive successful - Supabase project is active")
-            return True
-        else:
-            logger.warning(f"Keepalive returned empty response")
-            return False
-
+        service = get_gmail_service()
+        message = MIMEText(body)
+        message["to"] = RECIPIENT
+        message["subject"] = subject
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        logger.info(f"Email sent: {subject}")
     except Exception as e:
-        logger.error(f"✗ Keepalive failed: {str(e)}")
-        return False
+        logger.error(f"Failed to send email: {str(e)}")
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type((Exception,)),
+    reraise=True
+)
+def send_keepalive():
+    """Send a keepalive ping to Supabase to prevent project pause.
+
+    Retries 3 times with exponential backoff (4s, 8s, 16s).
+    """
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_ANON_KEY")
+
+    if not supabase_url or not supabase_key:
+        raise ValueError("Missing SUPABASE_URL or SUPABASE_ANON_KEY environment variables")
+
+    logger.info("Connecting to Supabase...")
+    supabase: Client = create_client(supabase_url, supabase_key)
+
+    # Simple query to any table - just to trigger activity
+    logger.info("Sending keepalive ping to Supabase...")
+    response = supabase.table("whatsapp_sessions").select("id", count="exact").limit(1).execute()
+
+    if not response:
+        raise Exception("Keepalive query returned empty response")
+
+    logger.info("✓ Keepalive successful - Supabase project is active")
+    return True
+
 
 if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"Starting Supabase keepalive at {timestamp}")
 
-    success = send_keepalive()
+    try:
+        send_keepalive()
 
-    if success:
+        # Success
         logger.info("Keepalive completed successfully")
+        _write_run_log("✓ OK")
+
+        # Send success email
+        body = f"""Supabase keepalive completed successfully.
+
+Time: {timestamp}
+Project: ctfxidycbwybpbixwskw
+Status: Active
+
+Your Supabase project is preventing pause due to inactivity."""
+        _send_email("✓ Supabase Keepalive Successful", body)
+
         exit(0)
-    else:
-        logger.error("Keepalive failed")
+
+    except Exception as e:
+        # Failure
+        logger.error(f"Keepalive failed after 3 retries: {str(e)}")
+        _write_run_log("❌ FAILED")
+
+        # Send failure email
+        body = f"""Supabase keepalive FAILED after 3 retry attempts.
+
+Time: {timestamp}
+Project: ctfxidycbwybpbixwskw
+Status: ERROR
+Error: {str(e)}
+
+The Supabase project may be at risk of pausing due to inactivity.
+Please check the credentials and logs:
+tail -20 /Users/gautambiswas/.local/share/job-logs/supabase-keepalive.log"""
+        _send_email("❌ Supabase Keepalive FAILED", body)
+
         exit(1)
