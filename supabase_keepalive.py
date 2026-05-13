@@ -49,21 +49,30 @@ def _write_run_log(status: str):
 
 
 def _send_email(subject: str, body: str):
-    """Send email alert via Gmail."""
+    """Send email alert via SMTP (iCloud)."""
     try:
-        # Import here to avoid issues if Gmail service isn't available
-        sys.path.insert(0, str(Path(__file__).parent / "real-estate"))
-        from listings.utils import get_gmail_service
-        import base64
+        import smtplib
         from email.mime.text import MIMEText
 
-        service = get_gmail_service()
-        message = MIMEText(body)
-        message["to"] = RECIPIENT
-        message["subject"] = subject
-        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
-        service.users().messages().send(userId="me", body={"raw": raw}).execute()
-        logger.info(f"Email sent: {subject}")
+        # Use iCloud SMTP instead of Gmail API (more reliable)
+        email_user = os.getenv("ICLOUD_EMAIL", "gautambiswas2004@icloud.com")
+        email_password = os.getenv("ICLOUD_APP_PASSWORD")
+
+        if not email_password:
+            logger.warning("ICLOUD_APP_PASSWORD not set, skipping email")
+            return
+
+        msg = MIMEText(body)
+        msg["Subject"] = subject
+        msg["From"] = email_user
+        msg["To"] = RECIPIENT
+
+        # Use iCloud SMTP server
+        with smtplib.SMTP_SSL("smtp.mail.me.com", 465) as server:
+            server.login(email_user, email_password)
+            server.sendmail(email_user, RECIPIENT, msg.as_string())
+
+        logger.info(f"✓ Email sent: {subject}")
     except Exception as e:
         logger.error(f"Failed to send email: {str(e)}")
 
