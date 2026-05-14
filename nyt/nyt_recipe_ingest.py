@@ -42,6 +42,7 @@ from utils import DB_PATH, get_anthropic_client, get_gmail_service
 # Config
 # ---------------------------------------------------------------------------
 COOKIE_FILE = Path(__file__).parent / "nyt_cookies.json"
+INGEST_TIMESTAMP_FILE = Path(__file__).parent / ".last_ingest_timestamp"
 GMAIL_QUERY_BASE = "from:nytdirect@nytimes.com"
 NYT_COOKING_DISPLAY_NAME = "nyt cooking"
 MODEL_HAIKU = "claude-haiku-4-5-20251001"
@@ -115,6 +116,18 @@ def email_already_processed(conn: sqlite3.Connection, email_id: str) -> bool:
         "SELECT 1 FROM recipes WHERE source_email_id = ?", (email_id,)
     ).fetchone()
     return row is not None
+
+
+def get_last_ingest_date() -> str | None:
+    """Get the date of the last successful ingest (YYYY/MM/DD format)."""
+    if INGEST_TIMESTAMP_FILE.exists():
+        return INGEST_TIMESTAMP_FILE.read_text().strip()
+    return None
+
+
+def save_ingest_date(date_str: str) -> None:
+    """Save the current ingest date (YYYY/MM/DD format)."""
+    INGEST_TIMESTAMP_FILE.write_text(date_str)
 
 
 def upsert_recipe(conn: sqlite3.Connection, recipe: dict[str, Any]) -> None:
@@ -933,6 +946,11 @@ def run(
     if not all_urls:
         log.info("No new recipes to fetch.")
         conn.close()
+        # Save timestamp even if no new recipes (ingest completed successfully)
+        from datetime import datetime
+        today = datetime.now().strftime("%Y/%m/%d")
+        save_ingest_date(today)
+        log.info("Ingest timestamp saved: %s", today)
         return
 
     # Phase 2: fetch all recipe pages in parallel (fix #5)
@@ -994,6 +1012,12 @@ def run(
     log.info("Done. %d recipe(s) saved.", total_saved)
     conn.close()
 
+    # Save the timestamp of this successful ingest
+    from datetime import datetime
+    today = datetime.now().strftime("%Y/%m/%d")
+    save_ingest_date(today)
+    log.info("Ingest timestamp saved: %s", today)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="NYT Cooking recipe ingest pipeline")
@@ -1007,17 +1031,26 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--after", type=str, default=None,
-        help="Only process emails after this date, e.g. 2021/01/01"
+        help="Only process emails after this date, e.g. 2021/01/01 (default: use last ingest date)"
     )
     parser.add_argument(
         "--before", type=str, default=None,
         help="Only process emails before this date, e.g. 2026/04/12"
     )
     args = parser.parse_args()
+
+    # If --after not provided, use last ingest date
+    after_date = args.after
+    if not after_date:
+        last_date = get_last_ingest_date()
+        if last_date:
+            log.info("Using last ingest date: %s", last_date)
+            after_date = last_date
+
     run(
         max_emails=args.max_emails,
         digest_only=args.digest_only,
-        after=args.after,
+        after=after_date,
         before=args.before,
     )
 
