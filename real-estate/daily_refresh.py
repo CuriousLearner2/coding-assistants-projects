@@ -301,8 +301,60 @@ def _send_error_email(error_title: str, error_details: str, remedy: str):
     _send_email(f"🚨 Listings Refresh Error: {error_title}", html)
 
 
+def _run_refresh_pipeline(since_ts):
+    """Execute refresh_db and audit_ingest. Raises exception on failure."""
+    import time
+    python = sys.executable
+
+    # Step 1: refresh_db
+    print("Step 1: Running refresh_db.py...")
+    rc1, out1 = _run_script([python, "-u", "refresh_db.py"])
+    refresh_ok = rc1 == 0
+    print(out1)
+    refresh_stats = _parse_refresh_output(out1)
+
+    # Step 2: audit_ingest
+    print("Step 2: Running audit_ingest.py...")
+    rc2, out2 = _run_script([python, "-u", "audit_ingest.py", "--since", since_ts])
+    audit_ok = rc2 == 0
+    print(out2)
+    audit_stats = _parse_audit_output(out2)
+
+    # Step 3: prepare email data
+    print("Step 3: Preparing summary email...")
+    new_listings = _get_new_listings(since_ts)
+    cleveland_listings = _get_cleveland_new_listings(since_ts)
+
+    # Use actual listing counts from database, not parsed output
+    refresh_stats["east_bay_listings"] = len(new_listings)
+    refresh_stats["cleveland_listings"] = len(cleveland_listings)
+
+    # Check for silent failures
+    if "Fetched" in out1 and "Cleveland" in out1:
+        # Check if Cleveland emails were fetched but produced zero listings
+        if "Fetched" in out1 and refresh_stats["cleveland_listings"] == 0:
+            # Check if this looks like an anomaly (emails were fetched but nothing ingested)
+            if "Fetched" in out1 and "No new Cleveland listings found" in out1:
+                # This might be OK if there are genuinely no Cleveland listings
+                # But we should check if iCloud credentials are working
+                if "iCloud fetch failed" in out1 or "LOGIN command error" in out1:
+                    _send_error_email(
+                        "iCloud Authentication Failed",
+                        "Cleveland ingest failed to connect to iCloud IMAP.",
+                        "Fix: Verify iCloud app password in ~/.zshrc\n"
+                        "  export ICLOUD_APP_PASSWORD='your-app-password'\n"
+                        "  Then run: source ~/.zshrc"
+                    )
+                    print(f"  ✓ Error email sent to {RECIPIENT}")
+
+    if not (refresh_ok and audit_ok):
+        raise Exception(f"Pipeline failed: refresh_ok={refresh_ok}, audit_ok={audit_ok}")
+
+    return refresh_ok, audit_ok, refresh_stats, audit_stats, new_listings, cleveland_listings, out1, out2
+
+
 def main():
-    """Run daily refresh pipeline with guaranteed status email and logging."""
+    """Run daily refresh pipeline with exponential backoff retries."""
     _load_env()
 
     print(f"=== Daily Refresh — {datetime.now().strftime('%Y-%m-%d %H:%M')} ===\n")
@@ -315,10 +367,12 @@ def main():
     new_listings = []
     cleveland_listings = []
     since_ts = None
-    service = None
     exception_occurred = None
+    out1 = ""
+    out2 = ""
 
     try:
+        import time
         since_ts_raw = _get_last_timestamp()
         # Subtract 1 hour to catch emails whose received_at is slightly before the
         # stored checkpoint (e.g. clock skew or batch of emails arriving mid-sync).
@@ -328,48 +382,27 @@ def main():
             since_ts = since_dt.isoformat()
         except Exception:
             since_ts = since_ts_raw
-        python = sys.executable
 
-        # Step 1: refresh_db
-        print("Step 1: Running refresh_db.py...")
-        rc1, out1 = _run_script([python, "-u", "refresh_db.py"])
-        refresh_ok = rc1 == 0
-        print(out1)
-        refresh_stats = _parse_refresh_output(out1)
+        # Run with exponential backoff retries (2 retries after primary failure)
+        max_attempts = 3
+        backoff_seconds = [0, 2, 4]  # Primary (no wait), retry 1 (2s), retry 2 (4s)
 
-        # Step 2: audit_ingest
-        print("Step 2: Running audit_ingest.py...")
-        rc2, out2 = _run_script([python, "-u", "audit_ingest.py", "--since", since_ts])
-        audit_ok = rc2 == 0
-        print(out2)
-        audit_stats = _parse_audit_output(out2)
+        for attempt in range(max_attempts):
+            try:
+                if attempt > 0:
+                    wait_time = backoff_seconds[attempt]
+                    print(f"\n⏳ Attempt {attempt + 1}/{max_attempts} — waiting {wait_time}s before retry...\n")
+                    time.sleep(wait_time)
 
-        # Step 3: prepare email data
-        print("Step 3: Preparing summary email...")
-        new_listings = _get_new_listings(since_ts)
-        cleveland_listings = _get_cleveland_new_listings(since_ts)
-
-        # Use actual listing counts from database, not parsed output
-        refresh_stats["east_bay_listings"] = len(new_listings)
-        refresh_stats["cleveland_listings"] = len(cleveland_listings)
-
-        # Check for silent failures
-        if "Fetched" in out1 and "Cleveland" in out1:
-            # Check if Cleveland emails were fetched but produced zero listings
-            if "Fetched" in out1 and refresh_stats["cleveland_listings"] == 0:
-                # Check if this looks like an anomaly (emails were fetched but nothing ingested)
-                if "Fetched" in out1 and "No new Cleveland listings found" in out1:
-                    # This might be OK if there are genuinely no Cleveland listings
-                    # But we should check if iCloud credentials are working
-                    if "iCloud fetch failed" in out1 or "LOGIN command error" in out1:
-                        _send_error_email(
-                            "iCloud Authentication Failed",
-                            "Cleveland ingest failed to connect to iCloud IMAP.",
-                            "Fix: Verify iCloud app password in ~/.zshrc\n"
-                            "  export ICLOUD_APP_PASSWORD='your-app-password'\n"
-                            "  Then run: source ~/.zshrc"
-                        )
-                        print(f"  ✓ Error email sent to {RECIPIENT}")
+                print(f"📋 Attempt {attempt + 1}/{max_attempts}")
+                refresh_ok, audit_ok, refresh_stats, audit_stats, new_listings, cleveland_listings, out1, out2 = _run_refresh_pipeline(since_ts)
+                break  # Success, exit retry loop
+            except Exception as e:
+                print(f"  ❌ Attempt {attempt + 1} failed: {e}")
+                if attempt == max_attempts - 1:
+                    # All retries exhausted
+                    raise
+                # Otherwise continue to next retry
 
     except Exception as e:
         exception_occurred = e
