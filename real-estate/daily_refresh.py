@@ -426,12 +426,21 @@ def main():
                     f"  • Attempt 2: Failed after 2s wait\n"
                     f"  • Attempt 3: Failed after 4s wait\n\n"
                     f"Error: {str(exception_occurred)}\n\n"
+                    f"Last pipeline output:\n"
+                    f"{'='*60}\n"
+                    f"{out1}\n{out2}\n"
+                    f"{'='*60}\n\n"
                     f"Stack trace:\n{tb_str}\n\n"
-                    f"Fallback: Next scheduled run at the next hour (09:00 or 11:00) will retry."
+                    f"Action: Next scheduled run at the next hour (09:00 or 11:00) will retry.\n"
+                    f"If still failing, check:\n"
+                    f"  1. iCloud IMAP credentials in ~/.zshrc\n"
+                    f"  2. Gmail API token validity\n"
+                    f"  3. Database connection and permissions\n"
+                    f"  4. Disk space on machine"
                 )
             else:
                 subject = "Job Execution Error"
-                body = f"Unexpected error: {str(exception_occurred)}\n\n{tb_str}"
+                body = f"Unexpected error: {str(exception_occurred)}\n\nOutput:\n{out1}\n{out2}\n\nStack trace:\n{tb_str}"
             _send_error_email(subject, body, "" if all_retries_failed else tb_str)
             print(f"  ✓ Error email sent to {RECIPIENT}")
         else:
