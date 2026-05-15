@@ -446,7 +446,18 @@ def main():
         else:
             # Send normal status email
             total = refresh_stats.get("east_bay_listings", 0) + refresh_stats.get("cleveland_listings", 0)
-            subject = f"Listings Refresh: {total} new listing{'s' if total != 1 else ''} — {datetime.now().strftime('%b %-d')}"
+            # Use the most recent listing date (not the run date)
+            all_listings = new_listings + cleveland_listings
+            if all_listings:
+                listing_dates = [l.get("received_at") for l in all_listings if l.get("received_at")]
+                if listing_dates:
+                    latest_date = max(listing_dates)
+                    listing_date_str = datetime.fromisoformat(latest_date).strftime('%b %-d')
+                else:
+                    listing_date_str = datetime.now().strftime('%b %-d')
+            else:
+                listing_date_str = datetime.now().strftime('%b %-d')
+            subject = f"Listings Refresh: {total} new listing{'s' if total != 1 else ''} — {listing_date_str}"
 
             html = _build_email_html(
                 refresh_stats, audit_stats,
