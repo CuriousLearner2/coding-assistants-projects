@@ -370,6 +370,7 @@ def main():
     exception_occurred = None
     out1 = ""
     out2 = ""
+    all_retries_failed = False
 
     try:
         import time
@@ -401,6 +402,7 @@ def main():
                 print(f"  ❌ Attempt {attempt + 1} failed: {e}")
                 if attempt == max_attempts - 1:
                     # All retries exhausted
+                    all_retries_failed = True
                     raise
                 # Otherwise continue to next retry
 
@@ -416,11 +418,22 @@ def main():
             # Send error email for unexpected exceptions
             import traceback
             tb_str = traceback.format_exc()
-            _send_error_email(
-                "Job Execution Error",
-                f"Unexpected error: {str(exception_occurred)}",
-                tb_str
-            )
+            if all_retries_failed:
+                subject = "❌ All 3 Retry Attempts Failed — Listings Refresh"
+                body = (
+                    "The listings refresh pipeline failed on all 3 retry attempts:\n"
+                    f"  • Attempt 1: Failed immediately\n"
+                    f"  • Attempt 2: Failed after 2s wait\n"
+                    f"  • Attempt 3: Failed after 4s wait\n\n"
+                    f"Error: {str(exception_occurred)}\n\n"
+                    f"Stack trace:\n{tb_str}\n\n"
+                    f"Fallback: Next scheduled run at the next hour (09:00 or 11:00) will retry."
+                )
+            else:
+                subject = "Job Execution Error"
+                body = f"Unexpected error: {str(exception_occurred)}\n\n{tb_str}"
+            _send_error_email(subject, body, "" if all_retries_failed else tb_str)
+            print(f"  ✓ Error email sent to {RECIPIENT}")
         else:
             # Send normal status email
             total = refresh_stats.get("east_bay_listings", 0) + refresh_stats.get("cleveland_listings", 0)
