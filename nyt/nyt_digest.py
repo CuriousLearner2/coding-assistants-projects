@@ -27,6 +27,19 @@ def _write_run_log(name: str, status: str):
     with open(RUN_LOG, "a") as f:
         f.write(f"{ts}  {name:<30}  {status}\n")
 
+
+def _already_sent_today() -> bool:
+    """Check if digest was already sent today (deduplication for redundant jobs)."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    try:
+        with open(RUN_LOG, "r") as f:
+            for line in f:
+                if today in line and "nyt-digest" in line and "✓ OK" in line:
+                    return True
+    except FileNotFoundError:
+        pass
+    return False
+
 # Sections to fetch — maps display name to API endpoint
 SECTIONS = {
     "Most Popular":  ("popular", "https://api.nytimes.com/svc/mostpopular/v2/viewed/1.json"),
@@ -234,10 +247,14 @@ def main():
     total = sum(len(v) for v in sections_data.values())
     print(f"  Fetched {total} articles across {len(SECTIONS)} sections")
 
-    html = _build_email_html(sections_data)
-    subject = f"NYT Morning Digest · {datetime.now().strftime('%b %-d')}"
-    _send_email(subject, html)
-    print(f"  ✓ Email sent to {RECIPIENT}")
+    # Only send email if not already sent today (deduplication for redundant jobs at 14:00, 16:00, 18:00)
+    if not _already_sent_today():
+        html = _build_email_html(sections_data)
+        subject = f"NYT Morning Digest · {datetime.now().strftime('%b %-d')}"
+        _send_email(subject, html)
+        print(f"  ✓ Email sent to {RECIPIENT}")
+    else:
+        print(f"  ℹ Digest already sent today — skipping duplicate email")
     _write_run_log("nyt-digest", "✓ OK")
     return 0
 
