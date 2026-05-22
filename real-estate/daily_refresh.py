@@ -34,6 +34,19 @@ def _write_run_log(name: str, status: str):
         print(f"  ✗ Error writing run log to {RUN_LOG}: {e}")
 
 
+def _already_ran_today() -> bool:
+    """Check if listings-refresh already ran successfully today (deduplication for redundant jobs)."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    try:
+        with open(RUN_LOG, "r") as f:
+            for line in f:
+                if today in line and "listings-refresh" in line and "✓ OK" in line:
+                    return True
+    except FileNotFoundError:
+        pass
+    return False
+
+
 def _load_env():
     """Load environment variables from ~/.zshrc."""
     zshrc = Path.home() / ".zshrc"
@@ -412,10 +425,10 @@ def main():
         import traceback
         traceback.print_exc()
 
-    # ALWAYS send a status email (Layer 2)
+    # Send emails (with deduplication for redundant jobs)
     try:
         if exception_occurred:
-            # Send error email for unexpected exceptions
+            # Always send error emails (no deduplication, errors need immediate attention)
             import traceback
             tb_str = traceback.format_exc()
             if all_retries_failed:
@@ -443,8 +456,8 @@ def main():
                 body = f"Unexpected error: {str(exception_occurred)}\n\nOutput:\n{out1}\n{out2}\n\nStack trace:\n{tb_str}"
             _send_error_email(subject, body, "" if all_retries_failed else tb_str)
             print(f"  ✓ Error email sent to {RECIPIENT}")
-        else:
-            # Send normal status email
+        elif not _already_ran_today():
+            # Send normal status email only once per day (deduplication for redundant jobs at 07:00, 09:00, 11:00)
             total = refresh_stats.get("east_bay_listings", 0) + refresh_stats.get("cleveland_listings", 0)
             # Use the most recent listing date (not the run date)
             all_listings = new_listings + cleveland_listings
@@ -466,6 +479,8 @@ def main():
             )
             _send_email(subject, html)
             print(f"  ✓ Summary email sent to {RECIPIENT}")
+        else:
+            print(f"  ℹ Refresh already ran today — skipping duplicate email")
     except Exception as e:
         print(f"  ⚠ Failed to send status email: {e}")
         import traceback
