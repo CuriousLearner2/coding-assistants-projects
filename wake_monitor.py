@@ -25,8 +25,34 @@ from pathlib import Path
 RECIPIENT = "gautambiswas2004@gmail.com"
 RUN_LOG = Path.home() / "Claude Code" / ".run_log"
 JOBS_DIR = Path.home() / "Claude Code" / "real-estate"
+LOCK_FILE = Path.home() / "Claude Code" / ".wake_monitor.lock"
 TIMEOUT_SECONDS = 30 * 60  # 30 minutes
 WAKE_POLL_INTERVAL = 5  # seconds between sleep/wake checks
+
+
+def _acquire_lock():
+    """Ensure only one instance runs. Exit if lock exists."""
+    if LOCK_FILE.exists():
+        try:
+            pid = int(LOCK_FILE.read_text().strip())
+            # Check if process is still running
+            import subprocess as sp
+            result = sp.run(["ps", "-p", str(pid)], capture_output=True)
+            if result.returncode == 0:
+                print(f"[wake_monitor] Another instance (PID {pid}) is already running. Exiting.")
+                sys.exit(1)
+            else:
+                print(f"[wake_monitor] Stale lock file (PID {pid} not running), removing...")
+                LOCK_FILE.unlink()
+        except Exception as e:
+            print(f"[wake_monitor] Error checking lock: {e}")
+
+    # Write our PID to the lock file
+    try:
+        LOCK_FILE.write_text(str(os.getpid()))
+        print(f"[wake_monitor] Lock acquired (PID {os.getpid()})")
+    except Exception as e:
+        print(f"[wake_monitor] Failed to create lock file: {e}")
 
 
 def _load_env():
@@ -180,6 +206,7 @@ def _run_jobs():
 
 def main():
     """Main daemon loop."""
+    _acquire_lock()
     _load_env()
 
     print(f"[wake_monitor] Starting wake monitor daemon at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -205,9 +232,6 @@ def main():
                     continue
 
                 try:
-                    # Refresh Gmail token to keep it alive (prevents expiration)
-                    _refresh_gmail_token()
-
                     # Spawn timeout monitor (Layer 3) BEFORE jobs start
                     _spawn_timeout_monitor()
 
