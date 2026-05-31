@@ -38,7 +38,7 @@ logging.basicConfig(
 logger = logging.getLogger("supabase_keepalive")
 
 RUN_LOG = Path.home() / "Claude Code" / ".run_log"
-RECIPIENT = "gautambiswas2004@gmail.com"
+RECIPIENT = "gautambiswas2004@icloud.com"
 
 
 def _write_run_log(status: str):
