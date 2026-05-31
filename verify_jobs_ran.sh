@@ -6,7 +6,7 @@
 
 LOG_FILE="/Users/gautambiswas/Claude Code/.run_log"
 TODAY=$(date +%Y-%m-%d)
-ALERT_EMAIL="gautambiswas2004@gmail.com"
+ALERT_EMAIL="gautambiswas2004@icloud.com"
 REPAIRS=()
 IN_PROGRESS=()
 FAILED=()
