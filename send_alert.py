@@ -7,7 +7,7 @@ from datetime import datetime
 from email.mime.text import MIMEText
 from pathlib import Path
 
-RECIPIENT = "gautambiswas2004@gmail.com"
+RECIPIENT = "gautambiswas2004@icloud.com"
 
 
 def send_alert(job: str, reason: str, log_path: str) -> None:

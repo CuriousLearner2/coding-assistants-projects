@@ -14,7 +14,7 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 
-RECIPIENT = "gautambiswas2004@gmail.com"
+RECIPIENT = "gautambiswas2004@icloud.com"
 RUN_LOG = Path.home() / "Claude Code" / ".run_log"
 TIMEOUT_SECONDS = 30 * 60  # 30 minutes
 CHECK_INTERVAL = 10  # seconds between checks

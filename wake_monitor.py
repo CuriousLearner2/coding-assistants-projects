@@ -22,7 +22,7 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 
-RECIPIENT = "gautambiswas2004@gmail.com"
+RECIPIENT = "gautambiswas2004@icloud.com"
 RUN_LOG = Path.home() / "Claude Code" / ".run_log"
 JOBS_DIR = Path.home() / "Claude Code" / "real-estate"
 LOCK_FILE = Path.home() / "Claude Code" / ".wake_monitor.lock"

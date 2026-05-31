@@ -18,7 +18,7 @@ import requests
 # Add parent directory to path so imports work from any location
 sys.path.insert(0, str(Path(__file__).parent.parent / "real-estate"))
 
-RECIPIENT = "gautambiswas2004@gmail.com"
+RECIPIENT = "gautambiswas2004@icloud.com"
 RUN_LOG = Path.home() / "Claude Code" / ".run_log"
 
 

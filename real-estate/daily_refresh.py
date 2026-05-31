@@ -18,7 +18,7 @@ from pathlib import Path
 # Add current directory to path so imports work from any location
 sys.path.insert(0, str(Path(__file__).parent))
 
-RECIPIENT = "gautambiswas2004@gmail.com"
+RECIPIENT = "gautambiswas2004@icloud.com"
 DB_PATH = "listings/listings.db"
 RUN_LOG = Path.home() / "Claude Code" / ".run_log"
 
