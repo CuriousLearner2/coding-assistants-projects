@@ -287,11 +287,11 @@ def _send_email(subject: str, html_body: str):
     msg["Subject"] = subject
     msg.attach(MIMEText(html_body, "html"))
 
-    app_password = os.environ.get("GMAIL_APP_PASSWORD")
+    app_password = os.environ.get("ICLOUD_APP_PASSWORD")
     if not app_password:
-        raise ValueError("GMAIL_APP_PASSWORD not set in environment")
+        raise ValueError("ICLOUD_APP_PASSWORD not set in environment")
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+    with smtplib.SMTP_SSL("smtp.mail.me.com", 465) as server:
         server.login(RECIPIENT, app_password)
         server.send_message(msg)
 
