@@ -291,7 +291,8 @@ def _send_email(subject: str, html_body: str):
     if not app_password:
         raise ValueError("ICLOUD_APP_PASSWORD not set in environment")
 
-    with smtplib.SMTP_SSL("smtp.mail.me.com", 465) as server:
+    with smtplib.SMTP("smtp.mail.me.com", 587) as server:
+        server.starttls()
         server.login(RECIPIENT, app_password)
         server.send_message(msg)
 

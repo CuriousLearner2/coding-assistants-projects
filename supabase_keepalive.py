@@ -68,7 +68,8 @@ def _send_email(subject: str, body: str):
         msg["To"] = RECIPIENT
 
         # Use iCloud SMTP server
-        with smtplib.SMTP_SSL("smtp.mail.me.com", 465) as server:
+        with smtplib.SMTP("smtp.mail.me.com", 587) as server:
+            server.starttls()
             server.login(email_user, email_password)
             server.sendmail(email_user, RECIPIENT, msg.as_string())
 
